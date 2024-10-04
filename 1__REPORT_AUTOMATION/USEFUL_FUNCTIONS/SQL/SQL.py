@@ -67,10 +67,9 @@ class DELETE_TABLES():
 
 class CREATE_TABLES():
 
-    def __init__(self, DETAILS, TABLE_NAME, INPUT_CRITERIA):
+    def __init__(self, DETAILS, TABLE_NAME):
         self.DETAILS                    = DETAILS
         self.TABLE_NAME                 = TABLE_NAME
-        self.INPUT_CRITERIA             = INPUT_CRITERIA
         self.SQL                        = self.CREATE_TABLES()
 
 
@@ -98,7 +97,7 @@ class CREATE_TABLES():
 
             SQL                 = F"""
                                 CREATE TABLE {self.TABLE_NAME} (
-                                {COLUMNS}
+                                TEST VARCHAR(255) NOT NULL
                                 )"""
 
             
@@ -196,5 +195,97 @@ class SQL_DATA_SAVE():
 
 
 
+class LOAD_TABLES():
 
+    def __init__(self, DETAILS):
+        self.DETAILS                    = DETAILS
+        self.TABLES                     = self.LOAD_TABLES()
+
+
+    def LOAD_TABLES(self):
+        
+        TABLES          = []
+        EXCLUSIONS      = ['commitment', 'user_information', 'personal_algo', 'algo_list', 'backtest', 'diary', 'allocation', 'saved_trades', 'personal_trades', 'algo_balance', 'trade_history_file', 'developments']
+
+
+        with sshtunnel.SSHTunnelForwarder(
+                    ('ssh.eu.pythonanywhere.com'),
+                    ssh_username        = self.DETAILS['SSH_USER_NAME'],
+                    ssh_password        = self.DETAILS['SSH_PASSWORD'],
+                    remote_bind_address = (self.DETAILS['POSTGRES_HOSTNAME'], self.DETAILS['POSTGRES_HOST_PORT'])) as server:
+            
+            server.start()
+
+            PORT                = server.local_bind_port
+            params              = { 'database'  : self.DETAILS['DB_NAME'],
+                                    'user'      : self.DETAILS['USERNAME'],
+                                    'password'  : self.DETAILS['PASSWORD'],
+                                    'host'      : self.DETAILS['HOST'],
+                                    'port'      : PORT
+                                }
+
+            conn                = psycopg2.connect(**params)
+            cursor              = conn.cursor()
+            
+
+            cursor.execute("""SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'""")
+            
+            for table in cursor.fetchall(): TABLES.append(table[0])
+            TABLES = [item for item in TABLES if item not in EXCLUSIONS]
+
+        return TABLES
+
+
+
+
+
+
+
+class DROP_COLUMN():
+
+    def __init__(self, DETAILS, TABLE_NAME, COLUMN_NAME):
+        self.DETAILS                    = DETAILS
+        self.TABLE_NAME                 = TABLE_NAME
+        self.COLUMN_NAME                = COLUMN_NAME
+        self.TABLES                     = self.DROP_COLUMN()
+
+    def DROP_COLUMN(self):
+        try:
+            with sshtunnel.SSHTunnelForwarder(
+                        ('ssh.eu.pythonanywhere.com'),
+                        ssh_username        = self.DETAILS['SSH_USER_NAME'],
+                        ssh_password        = self.DETAILS['SSH_PASSWORD'],
+                        remote_bind_address = (self.DETAILS['POSTGRES_HOSTNAME'], self.DETAILS['POSTGRES_HOST_PORT'])) as server:
+                
+                server.start()
+
+                PORT                = server.local_bind_port
+                params              = { 'database'  : self.DETAILS['DB_NAME'],
+                                        'user'      : self.DETAILS['USERNAME'],
+                                        'password'  : self.DETAILS['PASSWORD'],
+                                        'host'      : self.DETAILS['HOST'],
+                                        'port'      : PORT
+                                    }
+
+                conn                = psycopg2.connect(**params)
+                cursor              = conn.cursor()
+                
+
+                DROP_COL = f"ALTER TABLE {self.TABLE_NAME} DROP COLUMN {self.COLUMN_NAME};"
+                cursor.execute(DROP_COL)
+                
+
+            # Commit the changes
+            conn.commit()
+            print(f"Column '{self.COLUMN_NAME}' has been dropped from the table '{self.TABLE_NAME}'.")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        
+        finally:
+            # Close the cursor and connection
+            cursor.close()
+            conn.close()
+        
+        return self.DETAILS
 

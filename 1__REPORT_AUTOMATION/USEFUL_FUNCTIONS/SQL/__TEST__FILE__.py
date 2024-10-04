@@ -1,6 +1,28 @@
 
 
-from SQL import SQL_DATA_SAVE, SQL_DATA_READ, CREATE_TABLES, DELETE_TABLES
+from SQL import SQL_DATA_SAVE, SQL_DATA_READ, CREATE_TABLES, DELETE_TABLES, LOAD_TABLES, DROP_COLUMN
+
+
+import pandas as pd
+import warnings
+
+warnings.filterwarnings("ignore")
+
+
+
+
+def READ_EXCEL(FILE_PATH):
+
+    FUNCTIONS, TABLE_NAMES                          = [], []
+    REFERENCE                                       = pd.read_excel(FILE_PATH, sheet_name=0)
+
+    for i in range(1,9):                           FUNCTIONS.append(pd.read_excel(FILE_PATH, sheet_name=i))
+    for a in range(len(REFERENCE['TABLE NAME'])):   TABLE_NAMES.append(REFERENCE.at[a, 'TABLE NAME'])
+
+    return TABLE_NAMES, FUNCTIONS
+
+
+
 
 
 
@@ -16,29 +38,37 @@ DETAILS                           = {"POSTGRES_HOSTNAME"    : 'ENKIINVESTMENTS-1
                                      "DB_NAME"              : 'myappdb',
                                      "HOST"                 : '127.0.0.1'}
 
-INPUT_DF            = ""
-DROP_TABLE          = "algo_list"
-TABLE_NAMES         = "algo_list"
-TABLE_NAME          = "TEST_DATABASE"
-INPUT_CRITERIA      = [ "TIME VARCHAR(255) NOT NULL",
-                        "COIN VARCHAR(255) NOT NULL",
-                        "LEVERAGE VARCHAR(255) NOT NULL",
-                        "TP VARCHAR(255) NOT NULL",
-                        "SL VARCHAR(255) NOT NULL",
-                        "PORTFOLIO_PERCENT VARCHAR(255) NOT NULL",
-                        "DIRECTION VARCHAR(255) NOT NULL",
-                        "STATUS VARCHAR(255) NOT NULL"]
 
 
 
 
 
 
-DELETE      = DELETE_TABLES(DETAILS, DROP_TABLE)
-CREATE      = CREATE_TABLES(DETAILS, TABLE_NAME, INPUT_CRITERIA)
 
-ERROR       = SQL_DATA_SAVE(INPUT_DF, TABLE_NAME, DETAILS)
-DB          = SQL_DATA_READ(TABLE_NAMES, DETAILS)
+
+INPUT_CRITERIA                      = ["TEST VARCHAR(255) NOT NULL"]
+EXCEL_FUNCS_FOLDER                  = r'/Users/westhomas/Desktop/ALFRED/1__REPORT_AUTOMATION/REFERENCE_FILES/UPLOAD_TABLES/'
+FILE_EXTRA                          = "AST"
+EXCEL_FILE_NAME                     = 'AST_RAW_DATA_SQL_UPLOAD'
+
+
+EXCEL_TEST_PATH                     = EXCEL_FUNCS_FOLDER + '/' + FILE_EXTRA + '/' + EXCEL_FILE_NAME + '.xlsx'
+TABLE_NAMES, FUNCTIONS              = READ_EXCEL(EXCEL_TEST_PATH)
+#for NAME in TABLE_NAMES:            CREATE = CREATE_TABLES(DETAILS, NAME, INPUT_CRITERIA)
+
+
+#TABLES                             = LOAD_TABLES(DETAILS)
+#for DROP in TABLES.TABLES:         DELETE = DELETE_TABLES(DETAILS, DROP)
+
+
+TABLE                               = 'tvfgetdt_p_investmentinitialinformation'
+DB                                  = SQL_DATA_READ(TABLE, DETAILS)
+for col in DB.DATA.columns: print(col)
+print(DB.DATA)
+
+#for u in range(len(TABLE_NAMES)):   ERROR = SQL_DATA_SAVE(FUNCTIONS[u], TABLE_NAMES[u], DETAILS)
+
+#for u in range(len(TABLE_NAMES)):   ERROR = DROP_COLUMN(DETAILS, TABLE_NAMES[u], "TEST")
 
 
 
