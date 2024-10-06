@@ -2,364 +2,421 @@ import zipfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
-class WorkbookParser:
-    """
-    A class to parse the workbook.xml to extract sheet names and properties.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.sheets_info = self.parse_workbook()
-
-    def parse_workbook(self):
-        """
-        Parses xl/workbook.xml to extract sheet names and properties.
-        Returns a dictionary of sheet names with their attributes (e.g., ID, visibility).
-        """
-        sheets_info = {}
-        if 'xl/workbook.xml' in self.xml_files:
-            root = ET.fromstring(self.xml_files['xl/workbook.xml'])
-            for sheet in root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheet'):
-                sheet_id = sheet.attrib.get('sheetId')
-                name = sheet.attrib.get('name')
-                state = sheet.attrib.get('state', 'visible')  # Default to 'visible' if not present
-                sheets_info[sheet_id] = {'name': name, 'state': state}
-        return sheets_info
 
 
-class CalcChainParser:
-    """
-    A class to parse the calcChain.xml to extract the calculation order.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.calc_chain = self.parse_calc_chain()
-
-    def parse_calc_chain(self):
-        """
-        Parses xl/calcChain.xml to extract the calculation sequence of cells.
-        Returns a list of cell references in the order they are calculated.
-        """
-        calc_chain = []
-        if 'xl/calcChain.xml' in self.xml_files:
-            root = ET.fromstring(self.xml_files['xl/calcChain.xml'])
-            for cell in root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c'):
-                cell_ref = cell.attrib.get('r')
-                sheet_id = cell.attrib.get('i')  # Sheet ID
-                calc_chain.append({'cell_ref': cell_ref, 'sheet_id': sheet_id})
-        return calc_chain
 
 
-class DrawingsParser:
-    """
-    A class to parse drawing XML files to extract drawing information.
-    """
+class EXCEL_XML_EXTRACTOR:
+    def __init__(self, FILE_PATH):
+        self.FILE_PATH = FILE_PATH
+        self.XML_FILES = self.EXTRACT_XML_FILES()
 
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.drawings = self.parse_drawings()
-
-    def parse_drawings(self):
-        """
-        Parses xl/drawings/drawingX.xml to extract shapes, images, and charts.
-        Returns a list of drawing elements (e.g., images, shapes) with their properties.
-        """
-        drawings = defaultdict(list)
-        for file_name, xml_content in self.xml_files.items():
-            if 'xl/drawings/drawing' in file_name:
-                root = ET.fromstring(xml_content)
-                drawing_info = []
-                for anchor in root.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}twoCellAnchor'):
-                    blip = anchor.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
-                    if blip is not None:
-                        embed = blip.attrib.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
-                        drawing_info.append({'type': 'image', 'embed_id': embed})
-                drawings[file_name] = drawing_info
-        return drawings
+    def EXTRACT_XML_FILES(self):
+        XML_FILES = {}
+        with zipfile.ZipFile(self.FILE_PATH, 'r') as ZIP_REF:
+            for FILE in ZIP_REF.namelist():
+                if FILE.endswith('.xml'):
+                    with ZIP_REF.open(FILE) as f:
+                        XML_FILES[FILE] = f.read()
+        return XML_FILES
 
 
-class TablesParser:
-    """
-    A class to parse table XML files to extract table structures and metadata.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.tables = self.parse_tables()
-
-    def parse_tables(self):
-        """
-        Parses xl/tables/tableX.xml to extract table metadata.
-        Returns a dictionary of tables with their columns and ranges.
-        """
-        tables = {}
-        for file_name, xml_content in self.xml_files.items():
-            if 'xl/tables/table' in file_name:
-                root = ET.fromstring(xml_content)
-                table_info = {}
-                table_info['name'] = root.attrib.get('name')
-                table_info['ref'] = root.attrib.get('ref')  # Table range (e.g., A1:B10)
-                table_info['columns'] = [col.attrib.get('name') for col in root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}tableColumn')]
-                tables[file_name] = table_info
-        return tables
 
 
-class SheetRelsParser:
-    """
-    A class to parse sheet relationships (sheetX.xml.rels) to identify linked objects.
-    """
 
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.sheet_rels = self.parse_sheet_rels()
+
+
+class WORKBOOK_PARSING:
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.PARSE_WORKBOOK()
+
+    def PARSE_WORKBOOK(self):
+        MAP = {}
+        if 'xl/workbook.xml' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['xl/workbook.xml'])
+            SHEETS = ROOT.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheet')
+            for i, SHEET in enumerate(SHEETS):
+                NAME = SHEET.attrib.get('name')
+                STATE = SHEET.attrib.get('state', 'visible')
+                MAP[f'sheet{i + 1}'] = {'NAME': NAME, 'STATE': STATE}
+        return MAP
+
+
+
+
+
+
+
+
+
+class WORKSHEET_PARSING:
+    def __init__(self, XML_FILES, SHEET_NAME_MAP):
+        self.XML_FILES = XML_FILES
+        self.SHEET_NAME_MAP = SHEET_NAME_MAP
+        self.DICT = self.PARSE_WORKSHEETS()
+
+    def PARSE_WORKSHEETS(self):
+        WORKSHEETS = {}
+        for FILE_NAME, XML_CONTENT in self.XML_FILES.items():
+            if 'xl/worksheets/sheet' in FILE_NAME:
+                ROOT = ET.fromstring(XML_CONTENT)
+                SHEET_DATA = {}
+
+                for CELL in ROOT.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c'):
+                    CELL_REF = CELL.attrib.get('r')
+                    CELL_TYPE = CELL.attrib.get('t')
+                    STYLE_INDEX = CELL.attrib.get('s')
+                    FORMULA = CELL.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}f')
+                    VALUE = CELL.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v')
+
+                    VALUE_TEXT = VALUE.text if VALUE is not None else None
+
+                    CELL_DATA = {
+                        'TYPE': CELL_TYPE,
+                        'STYLE_INDEX': STYLE_INDEX,
+                        'FORMULA': FORMULA.text if FORMULA is not None else None,
+                        'VALUE': VALUE_TEXT
+                    }
+
+                    SHEET_DATA[CELL_REF] = CELL_DATA
+
+                # Extract the sheet internal reference (e.g., 'sheet1')
+                SHEET_NAME_KEY = FILE_NAME.split('/')[-1].replace('.xml', '')
+                # Map the internal sheet name to the user-defined sheet name
+                USER_DEFINED_NAME = self.SHEET_NAME_MAP.get(SHEET_NAME_KEY, {}).get('NAME', SHEET_NAME_KEY)
+                WORKSHEETS[USER_DEFINED_NAME] = SHEET_DATA
+
+        return WORKSHEETS
+
+
+
+
+
+class CALC_CHAIN_PARSING:
+    def __init__(self, XML_FILES, SHEET_NAME_MAP):
+        self.XML_FILES = XML_FILES
+        self.SHEET_NAME_MAP = SHEET_NAME_MAP
+        self.DICT = self.CALC_CHAIN_PARSE()
+
+    def CALC_CHAIN_PARSE(self):
+        CALC_CHAIN = []
+        if 'xl/calcChain.xml' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['xl/calcChain.xml'])
+            for CELL in ROOT.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c'):
+                CELL_REF = CELL.attrib.get('r')
+                SHEET_ID = CELL.attrib.get('i')
+                # Map SHEET_ID to the user-defined sheet name using SHEET_NAME_MAP
+                SHEET_NAME = self.SHEET_NAME_MAP.get(f'sheet{SHEET_ID}', {}).get('NAME', f'sheet{SHEET_ID}')
+                CALC_CHAIN.append({'CELL_REF': CELL_REF, 'SHEET_NAME': SHEET_NAME})
+        return CALC_CHAIN
+
+
+
+
+
+class SHARED_STRING_PARSING:
+
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.SHARED_STRINGS_PARSE()
+
+    def SHARED_STRINGS_PARSE(self):
+        SHARED_STRINGS = {}
+        if 'xl/sharedStrings.xml' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['xl/sharedStrings.xml'])
+            for i, SI in enumerate(ROOT.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}si')):
+                TEXT_NODE = SI.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}t')
+                if TEXT_NODE is not None:
+                    SHARED_STRINGS[i] = TEXT_NODE.text
+        return SHARED_STRINGS
+
+
+
+
+
+
+
+
+class STYLES_PARSING:
+    
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.STYLE_PARSE()
+
+    def STYLE_PARSE(self):
+        STYLES = {  
+            'NUMBER_FORMATS': {},
+            'FONTS': [],
+            'FILLS': [],
+            'BORDERS': [],
+            'CELLXFS': []
+        }
+        
+        if 'xl/styles.xml' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['xl/styles.xml'])
+
+            # 1. Extract number formats
+            NUM_FMTS = ROOT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}numFmts')
+            if NUM_FMTS is not None:
+                for NUM_FMT in NUM_FMTS.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}numFmt'):
+                    FMT_ID = NUM_FMT.attrib.get('numFmtId')
+                    FORMAT_CODE = NUM_FMT.attrib.get('formatCode')
+                    STYLES['NUMBER_FORMATS'][FMT_ID] = FORMAT_CODE
+
+            # 2. Extract fonts
+            FONTS = ROOT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}fonts')
+            if FONTS is not None:
+                for FONT in FONTS.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}font'):
+                    FONT_DATA = {
+                        'NAME': FONT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}name').attrib.get('val'),
+                        'SIZE': FONT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sz').attrib.get('val'),
+                        'BOLD': FONT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}b') is not None,
+                        'ITALIC': FONT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}i') is not None,
+                        'COLOR': FONT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}color').attrib.get('rgb') if FONT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}color') is not None else None
+                    }
+                    STYLES['FONTS'].append(FONT_DATA)
+
+            # 3. Extract fills
+            FILLS = ROOT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}fills')
+            if FILLS is not None:
+                for FILL in FILLS.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}fill'):
+                    PATTERN_FILL = FILL.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}patternFill')
+                    FILL_DATA = {
+                        'PATTERN_TYPE': PATTERN_FILL.attrib.get('patternType') if PATTERN_FILL is not None else None,
+                        'FG_COLOR': PATTERN_FILL.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}fgColor').attrib.get('rgb') if PATTERN_FILL is not None and PATTERN_FILL.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}fgColor') is not None else None,
+                        'BG_COLOR': PATTERN_FILL.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}bgColor').attrib.get('rgb') if PATTERN_FILL is not None and PATTERN_FILL.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}bgColor') is not None else None
+                    }
+                    STYLES['FILLS'].append(FILL_DATA)
+
+            # 4. Extract borders
+            BORDERS = ROOT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}borders')
+            if BORDERS is not None:
+                for BORDER in BORDERS.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}border'):
+                    BORDER_DATA = {
+                        'LEFT': BORDER.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}left') is not None,
+                        'RIGHT': BORDER.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}right') is not None,
+                        'TOP': BORDER.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}top') is not None,
+                        'BOTTOM': BORDER.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}bottom') is not None
+                    }
+                    STYLES['BORDERS'].append(BORDER_DATA)
+
+            # 5. Extract cellXfs (Cell formats)
+            CELLXFS = ROOT.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}cellXfs')
+            if CELLXFS is not None:
+                for XF in CELLXFS.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}xf'):
+                    XF_DATA = {
+                        'NUM_FMT_ID': XF.attrib.get('numFmtId'),
+                        'FONT_ID': XF.attrib.get('fontId'),
+                        'FILL_ID': XF.attrib.get('fillId'),
+                        'BORDER_ID': XF.attrib.get('borderId')
+                    }
+                    STYLES['CELLXFS'].append(XF_DATA)
+
+        return STYLES
+
+
+
+
+
+
+
+
+
+class DRAWING_PARSING:
+
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.DRAWING_PARSE()
+
+    def DRAWING_PARSE(self):
+        DRAWINGS = defaultdict(list)
+        for FILE_NAME, XML_CONTENT in self.XML_FILES.items():
+            if 'xl/drawings/drawing' in FILE_NAME:
+                ROOT = ET.fromstring(XML_CONTENT)
+                DRAWING_INFO = []
+
+                # Look for twoCellAnchor elements
+                for ANCHOR in ROOT.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}twoCellAnchor'):
+                    
+                    # Identify images
+                    BLIP = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
+                    if BLIP is not None:
+                        EMBED = BLIP.attrib.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                        DRAWING_INFO.append({'TYPE': 'IMAGE', 'EMBED_ID': EMBED})
+
+                    # Identify shapes (e.g., rectangles, circles)
+                    SP = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}sp')
+                    if SP is not None:
+                        SP_NAME = SP.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}nvSpPr/{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr').attrib.get('name', 'Shape')
+                        DRAWING_INFO.append({'TYPE': 'SHAPE', 'NAME': SP_NAME})
+
+                    # Identify charts
+                    GRAPHIC_FRAME = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}graphicFrame')
+                    if GRAPHIC_FRAME is not None:
+                        CHART = GRAPHIC_FRAME.find('.//{http://schemas.openxmlformats.org/drawingml/2006/chart}chart')
+                        if CHART is not None:
+                            CHART_ID = CHART.attrib.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+                            DRAWING_INFO.append({'TYPE': 'CHART', 'CHART_ID': CHART_ID})
+
+                    # Identify connectors (e.g., lines)
+                    CNX_SP = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}cxnSp')
+                    if CNX_SP is not None:
+                        CNX_NAME = CNX_SP.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}nvCxnSpPr/{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr').attrib.get('name', 'Connector')
+                        DRAWING_INFO.append({'TYPE': 'CONNECTOR', 'NAME': CNX_NAME})
+
+                DRAWINGS[FILE_NAME] = DRAWING_INFO
+        return DRAWINGS
+
+
+
+class TABLES_PARSING:
+
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.TABLES_PARSE()
+
+    def TABLES_PARSE(self):
+
+        TABLES = {}
+        for FILE_NAME, XML_CONTENT in self.XML_FILES.items():
+            if 'xl/tables/table' in FILE_NAME:
+                ROOT = ET.fromstring(XML_CONTENT)
+                TABLE_INFO = {}
+                TABLE_INFO['NAME']      = ROOT.attrib.get('name')
+                TABLE_INFO['REF']       = ROOT.attrib.get('ref')  # Table range (e.g., A1:B10)
+                TABLE_INFO['COLUMNS']   = [col.attrib.get('name') for col in ROOT.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}tableColumn')]
+                TABLES[FILE_NAME]       = TABLE_INFO
+        return TABLES
+    
+
+
+class THEME_PARSING:
+
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.THEME_PARSE()
+
+    def THEME_PARSE(self):
+
+        THEME = {}
+        if 'xl/theme/theme1.xml' in self.XML_FILES:  
+            ROOT = ET.fromstring(self.XML_FILES['xl/theme/theme1.xml'])
+            COLOUR_SCHEME = []
+            for COLOUR in ROOT.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}clrScheme//{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr'):
+                COLOUR_SCHEME.append(COLOUR.attrib.get('val'))
+            THEME['color_scheme'] = COLOUR_SCHEME
+        return THEME
+
+
+
+
+class RELATIVE_SHEETS_PARSING:
+    
+    def __init__(self, XML_FILES, SHEET_NAME_MAP):
+        self.XML_FILES = XML_FILES
+        self.SHEET_NAME_MAP = SHEET_NAME_MAP
+        self.DICT = self.parse_sheet_rels()
 
     def parse_sheet_rels(self):
-        """
-        Parses xl/worksheets/_rels/sheetX.xml.rels to extract relationships (e.g., images, charts).
-        Returns a dictionary of relationships for each sheet.
-        """
-        sheet_rels = defaultdict(list)
-        for file_name, xml_content in self.xml_files.items():
-            if 'xl/worksheets/_rels/sheet' in file_name and '.rels' in file_name:
-                root = ET.fromstring(xml_content)
-                for rel in root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
-                    rel_id = rel.attrib.get('Id')
-                    target = rel.attrib.get('Target')
-                    rel_type = rel.attrib.get('Type').split('/')[-1]  # Extract relationship type
-                    sheet_rels[file_name].append({'id': rel_id, 'target': target, 'type': rel_type})
-        return sheet_rels
+        SHEET_RELS = defaultdict(list)
+        
+        for FILE_NAME, XML_CONTENT in self.XML_FILES.items():
+            if 'xl/worksheets/_rels/sheet' in FILE_NAME and '.rels' in FILE_NAME:
+                ROOT = ET.fromstring(XML_CONTENT)
 
+                SHEET_NUM_KEY = FILE_NAME.split('/')[-1].replace('.xml.rels', '')
+                USER_DEFINED_NAME = self.SHEET_NAME_MAP.get(SHEET_NUM_KEY, {}).get('NAME', SHEET_NUM_KEY)
 
-class ThemeParser:
-    """
-    A class to parse theme XML files to extract color schemes and fonts.
-    """
+                for REL in ROOT.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                    REL_ID = REL.attrib.get('Id')
+                    TARGET = REL.attrib.get('Target')
+                    REL_TYPE = REL.attrib.get('Type').split('/')[-1].upper()  # Capitalize the TYPE
+                    SHEET_RELS[USER_DEFINED_NAME].append({'ID': REL_ID, 'TARGET': TARGET, 'TYPE': REL_TYPE})
 
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.theme = self.parse_theme()
-
-    def parse_theme(self):
-        """
-        Parses xl/theme/themeX.xml to extract color schemes and fonts.
-        Returns a dictionary containing theme details.
-        """
-        theme = {}
-        if 'xl/theme/theme1.xml' in self.xml_files:  # Default theme is usually theme1.xml
-            root = ET.fromstring(self.xml_files['xl/theme/theme1.xml'])
-            color_scheme = []
-            for color in root.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/main}clrScheme//{http://schemas.openxmlformats.org/drawingml/2006/main}srgbClr'):
-                color_scheme.append(color.attrib.get('val'))
-            theme['color_scheme'] = color_scheme
-        return theme
-
-
-class ContentTypesParser:
-    """
-    A class to parse [Content_Types].xml to identify parts of the document and their types.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.content_types = self.parse_content_types()
-
-    def parse_content_types(self):
-        """
-        Parses [Content_Types].xml to identify content types within the workbook.
-        Returns a list of content types and their paths.
-        """
-        content_types = []
-        if '[Content_Types].xml' in self.xml_files:
-            root = ET.fromstring(self.xml_files['[Content_Types].xml'])
-            for override in root.findall('.//{http://schemas.openxmlformats.org/package/2006/content-types}Override'):
-                part_name = override.attrib.get('PartName')
-                content_type = override.attrib.get('ContentType')
-                content_types.append({'part_name': part_name, 'content_type': content_type})
-        return content_types
-
-
-class WorkbookRelsParser:
-    """
-    A class to parse workbook.xml.rels to identify relationships in the workbook.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.workbook_rels = self.parse_workbook_rels()
-
-    def parse_workbook_rels(self):
-        """
-        Parses xl/_rels/workbook.xml.rels to extract workbook relationships.
-        Returns a list of relationships with their targets and types.
-        """
-        workbook_rels = []
-        if 'xl/_rels/workbook.xml.rels' in self.xml_files:
-            root = ET.fromstring(self.xml_files['xl/_rels/workbook.xml.rels'])
-            for rel in root.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
-                rel_id = rel.attrib.get('Id')
-                target = rel.attrib.get('Target')
-                rel_type = rel.attrib.get('Type').split('/')[-1]
-                workbook_rels.append({'id': rel_id, 'target': target, 'type': rel_type})
-        return workbook_rels
+        return SHEET_RELS
+    
 
 
 
-class ExcelXMLExtractor:
-    """
-    A class to extract XML files from an Excel workbook.
-    """
+class CONTENT_TYPE_PARSING:
 
-    def __init__(self, file_path):
-        self.file_path = file_path
-        self.xml_files = self.extract_xml_files()
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.CONTENT_TYPE_PARSE()
 
-    def extract_xml_files(self):
-        """
-        Extracts XML files from the Excel workbook.
-        Returns a dictionary with filenames as keys and XML content as values.
-        """
-        xml_files = {}
-        with zipfile.ZipFile(self.file_path, 'r') as zip_ref:
-            for file in zip_ref.namelist():
-                if file.endswith('.xml'):
-                    with zip_ref.open(file) as f:
-                        xml_files[file] = f.read()
-        return xml_files
+    def CONTENT_TYPE_PARSE(self):
 
-
-class WorksheetParser:
-    """
-    A class to parse worksheet XML files to extract cell data and formulas.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.worksheets = self.parse_worksheets()
-
-    def parse_worksheets(self):
-        """
-        Parses worksheet XML files to extract cell data and formulas.
-        Returns a dictionary with worksheet names as keys and cell data as values.
-        """
-        worksheets = {}
-        for file_name, xml_content in self.xml_files.items():
-            if 'xl/worksheets/sheet' in file_name:
-                root = ET.fromstring(xml_content)
-                sheet_data = {}
-
-                for cell in root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}c'):
-                    cell_ref = cell.attrib.get('r')
-                    cell_type = cell.attrib.get('t')
-                    formula = cell.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}f')
-                    value = cell.find('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}v')
-
-                    cell_data = {
-                        'type': cell_type,
-                        'formula': formula.text if formula is not None else None,
-                        'value': value.text if value is not None else None
-                    }
-                    sheet_data[cell_ref] = cell_data
-
-                sheet_name = file_name.split('/')[-1].replace('.xml', '')
-                worksheets[sheet_name] = sheet_data
-
-        return worksheets
-
-
-class SharedStringsParser:
-    """
-    A class to parse shared strings XML to extract text values.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.shared_strings = self.parse_shared_strings()
-
-    def parse_shared_strings(self):
-        """
-        Parses shared strings XML to extract text values.
-        Returns a dictionary with string indices as keys and text content as values.
-        """
-        shared_strings = {}
-        if 'xl/sharedStrings.xml' in self.xml_files:
-            root = ET.fromstring(self.xml_files['xl/sharedStrings.xml'])
-            for i, si in enumerate(root.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}si')):
-                text_node = si.find('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}t')
-                if text_node is not None:
-                    shared_strings[i] = text_node.text
-        return shared_strings
-
-
-class StylesParser:
-    """
-    A placeholder class to parse styles from the styles XML file.
-    """
-
-    def __init__(self, xml_files):
-        self.xml_files = xml_files
-        self.styles = self.parse_styles()
-
-    def parse_styles(self):
-        """
-        Placeholder method for parsing styles from styles.xml.
-        Returns a dictionary mapping style IDs to style attributes.
-        """
-        styles = {}
-        if 'xl/styles.xml' in self.xml_files:
-            # Placeholder for extracting styles like number formats, fonts, colors
-            pass
-        return styles
-
-
-
-# Controller Class
-class ExcelDataParser:
-    def __init__(self, file_path):
-        self.xml_extractor = ExcelXMLExtractor(file_path)
-        self.xml_files = self.xml_extractor.xml_files
-
-        # Initializing all parsers
-        self.worksheet_parser = WorksheetParser(self.xml_files)
-        self.shared_strings_parser = SharedStringsParser(self.xml_files)
-        self.styles_parser = StylesParser(self.xml_files)
-        self.workbook_parser = WorkbookParser(self.xml_files)
-        self.calc_chain_parser = CalcChainParser(self.xml_files)
-        self.drawings_parser = DrawingsParser(self.xml_files)
-        self.tables_parser = TablesParser(self.xml_files)
-        self.sheet_rels_parser = SheetRelsParser(self.xml_files)
-        self.theme_parser = ThemeParser(self.xml_files)
-        self.content_types_parser = ContentTypesParser(self.xml_files)
-        self.workbook_rels_parser = WorkbookRelsParser(self.xml_files)
-
-    def get_all_data(self):
-        """
-        Orchestrates all parsing processes and returns a dictionary with all parsed data.
-        """
-        return {
-            'worksheets': self.worksheet_parser.worksheets,
-            'shared_strings': self.shared_strings_parser.shared_strings,
-            'styles': self.styles_parser.styles,
-            'sheets_info': self.workbook_parser.sheets_info,
-            'calc_chain': self.calc_chain_parser.calc_chain,
-            'drawings': self.drawings_parser.drawings,
-            'tables': self.tables_parser.tables,
-            'sheet_rels': self.sheet_rels_parser.sheet_rels,
-            'theme': self.theme_parser.theme,
-            'content_types': self.content_types_parser.content_types,
-            'workbook_rels': self.workbook_rels_parser.workbook_rels
-        }
+        CONTENT_TYPES = []
+        if '[Content_Types].xml' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['[Content_Types].xml'])
+            for OVERRIDE in ROOT.findall('.//{http://schemas.openxmlformats.org/package/2006/content-types}Override'):
+                PART_NAME       = OVERRIDE.attrib.get('PartName')
+                CONTENT_TYPE    = OVERRIDE.attrib.get('ContentType')
+                CONTENT_TYPES.append({'PART_NAME': PART_NAME, 'CONTENT_TYPE': CONTENT_TYPE})
+        return CONTENT_TYPES
 
 
 
 
-# Usage example
-# This part initializes the ExcelDataParser with an Excel file path and extracts all relevant data.
-# excel_data_parser = ExcelDataParser('path/to/excel.xlsx')
-# all_data = excel_data_parser.get_all_data()
-# print(all_data)
 
-# Example usage (replace 'path/to/excel.xlsx' with the actual path to your Excel file)
-# excel_data_parser = ExcelDataParser('path/to/excel.xlsx')
-# parsed_data = excel_data_parser.get_data()
-# print(parsed_data)
+class RELATIVE_WORKBOOK_PARSING:
+    
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.WORKBOOK_REL_PARSE()
+
+    def WORKBOOK_REL_PARSE(self):
+
+        WORKBOOK_RELS = []
+        if 'xl/_rels/workbook.xml.rels' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['xl/_rels/workbook.xml.rels'])
+            for REL in ROOT.findall('.//{http://schemas.openxmlformats.org/package/2006/relationships}Relationship'):
+                REL_ID      = REL.attrib.get('Id')
+                TARGET      = REL.attrib.get('Target')
+                REL_TYPE    = REL.attrib.get('Type').split('/')[-1]
+                WORKBOOK_RELS.append({'ID': REL_ID, 'TARGET': TARGET, 'TYPE': REL_TYPE})
+        return WORKBOOK_RELS
+
+
+
+
+
+
+
+class EXCEL_DATA_PARSER:
+
+
+    def __init__(self, FILE_PATH):
+        self.XML_EXTRACTOR      = EXCEL_XML_EXTRACTOR(FILE_PATH)
+        self.SHEET_NAMES        = WORKBOOK_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.WORKSHEET_PARSER   = WORKSHEET_PARSING(self.XML_EXTRACTOR.XML_FILES, self.SHEET_NAMES.DICT)
+        self.CALC_CHAIN         = CALC_CHAIN_PARSING(self.XML_EXTRACTOR.XML_FILES, self.SHEET_NAMES.DICT)
+        self.SHEET_RELS         = RELATIVE_SHEETS_PARSING(self.XML_EXTRACTOR.XML_FILES, self.SHEET_NAMES.DICT)
+        self.SHARED_STRINGS     = SHARED_STRING_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.STYLES             = STYLES_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.DRAWINGS           = DRAWING_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.TABLES             = TABLES_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.THEME              = THEME_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.CONTENT_TYPE       = CONTENT_TYPE_PARSING(self.XML_EXTRACTOR.XML_FILES)
+        self.WORKBOOK_RELS      = RELATIVE_WORKBOOK_PARSING(self.XML_EXTRACTOR.XML_FILES)
+
+
+    def GET_DATA(self):
+
+        return {'WORKSHEETS'        : self.WORKSHEET_PARSER.DICT,
+                'SHEET_NAME_MAP'    : self.SHEET_NAMES.DICT,
+                'SHARED_STRINGS'    : self.SHARED_STRINGS.DICT,
+                'STYLES'            : self.STYLES.DICT,
+                'CALC_CHAIN'        : self.CALC_CHAIN.DICT,
+                'DRAWINGS'          : self.DRAWINGS.DICT,
+                'TABLES'            : self.TABLES.DICT,
+                'SHEET_RELS'        : self.SHEET_RELS.DICT,
+                'THEME'             : self.THEME.DICT,
+                'CONTENT_TYPES'     : self.CONTENT_TYPE.DICT,
+                'WORKBOOK_RELS'     : self.WORKBOOK_RELS.DICT}
+
+
+
+
+
