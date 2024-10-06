@@ -93,7 +93,6 @@ class CREATE_TABLES():
 
             conn                = psycopg2.connect(**params)
             cursor              = conn.cursor()
-            COLUMNS             = ",\n".join(self.INPUT_CRITERIA)
 
             SQL                 = F"""
                                 CREATE TABLE {self.TABLE_NAME} (

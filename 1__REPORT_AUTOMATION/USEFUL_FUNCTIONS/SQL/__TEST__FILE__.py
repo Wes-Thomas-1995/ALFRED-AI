@@ -54,22 +54,19 @@ EXCEL_FILE_NAME                     = 'AST_RAW_DATA_SQL_UPLOAD'
 
 EXCEL_TEST_PATH                     = EXCEL_FUNCS_FOLDER + '/' + FILE_EXTRA + '/' + EXCEL_FILE_NAME + '.xlsx'
 TABLE_NAMES, FUNCTIONS              = READ_EXCEL(EXCEL_TEST_PATH)
-#for NAME in TABLE_NAMES:            CREATE = CREATE_TABLES(DETAILS, NAME, INPUT_CRITERIA)
-
-
-#TABLES                             = LOAD_TABLES(DETAILS)
-#for DROP in TABLES.TABLES:         DELETE = DELETE_TABLES(DETAILS, DROP)
 
 
 TABLE                               = 'tvfgetdt_p_investmentinitialinformation'
-DB                                  = SQL_DATA_READ(TABLE, DETAILS)
-for col in DB.DATA.columns: print(col)
-print(DB.DATA)
 
+
+
+
+
+
+
+#TABLES                              = LOAD_TABLES(DETAILS)
+#for DROP in TABLES.TABLES:          DELETE = DELETE_TABLES(DETAILS, DROP)
+#for NAME in TABLE_NAMES:            CREATE = CREATE_TABLES(DETAILS, NAME)
+#DB                                  = SQL_DATA_READ(TABLE, DETAILS)
 #for u in range(len(TABLE_NAMES)):   ERROR = SQL_DATA_SAVE(FUNCTIONS[u], TABLE_NAMES[u], DETAILS)
-
 #for u in range(len(TABLE_NAMES)):   ERROR = DROP_COLUMN(DETAILS, TABLE_NAMES[u], "TEST")
-
-
-
-
