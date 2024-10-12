@@ -113,6 +113,7 @@ class FORMULA_ANALYZER:
         FUNCTIONS_DF                    = FUNC_DATA['DATAFRAME'][0]
         OPERATORS_DF                    = FUNC_DATA['DATAFRAME'][1]
         FUNCTIONS_DF['JSON_FIELDS']     = FUNCTIONS_DF['JSON_FIELDS'].apply(ast.literal_eval)
+        FUNCTIONS_DF['CLUSTERS']        = FUNCTIONS_DF['CLUSTERS'].apply(ast.literal_eval)
 
         return FUNCTIONS_DF, OPERATORS_DF
 
