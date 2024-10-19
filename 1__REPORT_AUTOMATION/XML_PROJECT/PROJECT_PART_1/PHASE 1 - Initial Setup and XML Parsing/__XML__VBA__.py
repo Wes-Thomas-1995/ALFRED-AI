@@ -22,6 +22,68 @@ VBA_ENDERS      = ["End Sub", "End Function"]
 
 
 
+
+
+class EXCEL_XML_EXTRACTOR:
+    def __init__(self, FILE_PATH):
+        self.FILE_PATH = FILE_PATH
+        self.XML_FILES = self.EXTRACT_XML_FILES()
+
+    def EXTRACT_XML_FILES(self):
+        XML_FILES = {}
+        with zipfile.ZipFile(self.FILE_PATH, 'r') as ZIP_REF:
+            for FILE in ZIP_REF.namelist():
+                if FILE.endswith('.xml'):
+                    with ZIP_REF.open(FILE) as f:
+                        XML_FILES[FILE] = f.read()
+        return XML_FILES
+
+
+
+
+
+
+
+
+
+
+
+
+def SHEET_NAME_MAP(ROOT):
+
+
+    with zipfile.ZipFile(ROOT, 'r') as ZIP_FILE:    
+        VISIBLE_SHEET_NAMES                                 = VISIBLE_SHEET_NAME(ZIP_FILE)
+        CODE_SHEET_NAMES, CLEAN_NAMES, MOD_NAMES, MOD_REF   = CODE_NAMES(ZIP_FILE)
+
+        SHEETS_DF           = pd.DataFrame({'MODULE_TYPE'           : 'Class Module',
+                                            'SHEET_NAME'            : VISIBLE_SHEET_NAMES,
+                                            'VBA_CLEAN_SHEET_NAME'  : CLEAN_NAMES,
+                                            'VBA_SHEET_NAME'        : CODE_SHEET_NAMES})
+
+        MOD_SHEETS_DF       = pd.DataFrame({'MODULE_TYPE'           : 'Standard Module',
+                                            'SHEET_NAME'            : 'NA',
+                                            'VBA_CLEAN_SHEET_NAME'  : MOD_REF,
+                                            'VBA_SHEET_NAME'        : MOD_NAMES})
+
+
+        SHEETS_DF = (pd.concat([SHEETS_DF, MOD_SHEETS_DF], ignore_index=True)).reset_index().iloc[:,1:]
+
+    return SHEETS_DF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def CHECK_FOR_STARTERS(VBA_CODE, STARTER_LIST):
     for STARTER in STARTER_LIST:
         if STARTER in VBA_CODE:     return True
@@ -112,27 +174,6 @@ def VBA_SOURCING(ROOT, VBA_NAME, VBA_TEMP, EXTRACT, VBA_STARTERS, VBA_ENDERS):
 
 
 
-def SHEET_NAME_MAP(ROOT):
-
-
-    with zipfile.ZipFile(ROOT, 'r') as ZIP_FILE:    
-        VISIBLE_SHEET_NAMES                                 = VISIBLE_SHEET_NAME(ZIP_FILE)
-        CODE_SHEET_NAMES, CLEAN_NAMES, MOD_NAMES, MOD_REF   = CODE_NAMES(ZIP_FILE)
-
-        SHEETS_DF           = pd.DataFrame({'MODULE_TYPE'           : 'Class Module',
-                                            'SHEET_NAME'            : VISIBLE_SHEET_NAMES,
-                                            'VBA_CLEAN_SHEET_NAME'  : CLEAN_NAMES,
-                                            'VBA_SHEET_NAME'        : CODE_SHEET_NAMES})
-
-        MOD_SHEETS_DF       = pd.DataFrame({'MODULE_TYPE'           : 'Standard Module',
-                                            'SHEET_NAME'            : 'NA',
-                                            'VBA_CLEAN_SHEET_NAME'  : MOD_REF,
-                                            'VBA_SHEET_NAME'        : MOD_NAMES})
-
-
-        SHEETS_DF = (pd.concat([SHEETS_DF, MOD_SHEETS_DF], ignore_index=True)).reset_index().iloc[:,1:]
-
-    return SHEETS_DF
 
 
 
