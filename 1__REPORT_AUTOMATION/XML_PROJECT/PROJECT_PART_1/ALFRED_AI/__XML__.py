@@ -1,15 +1,19 @@
 import re
-import json
 import ast
+import json
+import base64
 import zipfile
 import string
 import openpyxl
 import pandas as pd
 import networkx as nx
+from lxml import etree
+from io import BytesIO
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from openpyxl import load_workbook
-#from oletools.olevba import VBA_Parser
+from oletools.olevba import VBA_Parser
+
 
 
 
@@ -361,7 +365,6 @@ class STYLES_PARSING:
 
 
 
-
 class DRAWING_PARSING:
 
     def __init__(self, XML_FILES):
@@ -369,47 +372,46 @@ class DRAWING_PARSING:
         self.DICT = self.DRAWING_PARSE()
 
     def DRAWING_PARSE(self):
-        DRAWINGS = defaultdict(list)
+        DRAWINGS = {}
         for FILE_NAME, XML_CONTENT in self.XML_FILES.items():
             if 'xl/drawings/drawing' in FILE_NAME:
                 ROOT = ET.fromstring(XML_CONTENT)
                 DRAWING_INFO = []
 
+                # Namespaces
+                NAMESPACES = {
+                    'A': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+                    'XDR': 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing'
+                }
 
-                # Look for twoCellAnchor elements
-                for ANCHOR in ROOT.findall('.//{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}twoCellAnchor'):
-
-
-                    # Identify images
-                    BLIP = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip')
-                    if BLIP is not None:
-                        EMBED = BLIP.attrib.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
-                        DRAWING_INFO.append({'TYPE': 'IMAGE', 'EMBED_ID': EMBED})
-
-                    # Identify shapes (e.g., rectangles, circles)
-                    SP = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}sp')
+                # Loop through shapes only
+                for ANCHOR in ROOT.findall('XDR:twoCellAnchor', NAMESPACES):
+                    SHAPE_INFO = {}
+                    SP = ANCHOR.find('XDR:sp', NAMESPACES)
+                    
                     if SP is not None:
-                        SP_NAME = SP.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}nvSpPr/{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr').attrib.get('name', 'Shape')
-                        DRAWING_INFO.append({'TYPE': 'SHAPE', 'NAME': SP_NAME})
+                        # Shape name and macro attributes
+                        SP_NAME = SP.find('XDR:nvSpPr/XDR:cNvPr', NAMESPACES)
+                        if SP_NAME is not None:
+                            SHAPE_INFO['TYPE'] = 'SHAPE'
+                            SHAPE_INFO['NAME'] = SP_NAME.attrib.get('name', 'Unnamed Shape')
 
-                    # Identify charts
-                    GRAPHIC_FRAME = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}graphicFrame')
-                    if GRAPHIC_FRAME is not None:
-                        CHART = GRAPHIC_FRAME.find('.//{http://schemas.openxmlformats.org/drawingml/2006/chart}chart')
-                        if CHART is not None:
-                            CHART_ID = CHART.attrib.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
-                            DRAWING_INFO.append({'TYPE': 'CHART', 'CHART_ID': CHART_ID})
+                            # Capture macro text after "!"
+                            MACRO_TEXT = SP.attrib.get('macro', None)
+                            if MACRO_TEXT and "!" in MACRO_TEXT:
+                                SHAPE_INFO['MACRO'] = MACRO_TEXT.split("!")[1]
+                            else:
+                                SHAPE_INFO['MACRO'] = 'No Macro Assigned'
 
-                    # Identify connectors (e.g., lines)
-                    CNX_SP = ANCHOR.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}cxnSp')
-                    if CNX_SP is not None:
-                        CNX_NAME = CNX_SP.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}nvCxnSpPr/{http://schemas.openxmlformats.org/drawingml/2006/main}cNvPr').attrib.get('name', 'Connector')
-                        DRAWING_INFO.append({'TYPE': 'CONNECTOR', 'NAME': CNX_NAME})
+                        # Extract text within shape
+                        TEXT_ELEMENTS = SP.findall('.//A:t', NAMESPACES)
+                        SHAPE_INFO['TEXT'] = ' '.join([ELEM.text for ELEM in TEXT_ELEMENTS if ELEM.text]) if TEXT_ELEMENTS else 'No Text Content'
+
+                        DRAWING_INFO.append(SHAPE_INFO)
 
                 DRAWINGS[FILE_NAME] = DRAWING_INFO
+
         return DRAWINGS
-
-
 
 
 
@@ -702,6 +704,15 @@ class EXTERNAL_CONNECTIONS_PARSING:
         self.XML_FILES = XML_FILES
         self.DICT = self.CHECK_EXTERNAL_CONNECTIONS()
 
+    def translate_type(self, type_code):
+        type_mapping = {
+            '1': 'Worksheet/Table',
+            '5': 'Power Query/Model',
+            '6': 'OLEDB/Database',
+            '7': 'Web/External Source'
+        }
+        return type_mapping.get(type_code, 'Unknown')
+
     def CHECK_EXTERNAL_CONNECTIONS(self):
         external_connections = {}
 
@@ -715,9 +726,13 @@ class EXTERNAL_CONNECTIONS_PARSING:
                 conn_type = connection.attrib.get('type')
                 conn_ref = connection.attrib.get('ref', 'N/A')
 
+                # Translate the type code to a readable description
+                conn_type_description = self.translate_type(conn_type)
+
                 external_connections[conn_id] = {
                     'NAME': conn_name,
                     'TYPE': conn_type,
+                    'TYPE_DESCRIPTION': conn_type_description,
                     'REF': conn_ref
                 }
 
@@ -734,53 +749,121 @@ class EXTERNAL_CONNECTIONS_PARSING:
                     external_connections[rel.attrib.get('Id')] = {
                         'NAME': rel.attrib.get('Target'),
                         'TYPE': 'External Link',
+                        'TYPE_DESCRIPTION': 'External Link',
                         'REF': rel.attrib.get('Target')
                     }
 
         return external_connections
-    
+
+
+
+
+
 
 class POWER_QUERY:
-    def __init__(self, XML_FILES):
-        self.XML_FILES = XML_FILES
-        self.CODE = self.EXTRACT_POWER_QUERY()
-
-    def EXTRACT_POWER_QUERY(self):
-        POWER_QUERY_DATA    = []
-        CUSTOM_XML          = 'customXml/'
-        
-        for FILE_NAME, XML_CONTENT in self.XML_FILES.items():
-            if FILE_NAME.startswith(CUSTOM_XML) and FILE_NAME.endswith('.xml'):
-                try:
-                    ROOT        = ET.fromstring(XML_CONTENT)
-                    PQ_CODE     = ET.tostring(ROOT, encoding='unicode')
-                    POWER_QUERY_DATA.append({   'FILE'      : FILE_NAME,
-                                                'PQ_CODE'   : PQ_CODE.strip()})
-                
-                except ET.ParseError: print(f"Error parsing {FILE_NAME}")
-        
-        return pd.DataFrame(POWER_QUERY_DATA)
+    def __init__(self, XML_FILES, FILE_PATH):
+        self.XML_FILES          = XML_FILES
+        self.FILE_PATH          = FILE_PATH
+        self.QUERY_OVERVIEW     = self.EXTRACT_BASIC_QUERY_METADATA()
+        self.COLUMN_REFERENCES  = self.QUERY_OVERVIEW['REFERENCE'].unique().tolist()
+        self.M_CODE_SECTIONS    = self.EXTRACT_M_CODE_FROM_DATA_MASHUP()
+        self.DICT               = self.MAP_M_CODE_AND_TYPE_TO_QUERY_OVERVIEW()  
 
 
-class QUERY_META_DATA:
-    def __init__(self, XML_FILES):
-        self.XML_FILES      = XML_FILES
-        self.META           = self.EXTRACT_META()
+    def EXTRACT_BASIC_QUERY_METADATA(self):
+        QUERY_DATA = []
+        if 'xl/connections.xml' in self.XML_FILES:
+            ROOT = ET.fromstring(self.XML_FILES['xl/connections.xml'])
+            for CONNECTION in ROOT.findall('.//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}connection'):
+                CONN_ID         = CONNECTION.attrib.get('id')
+                CONN_NAME       = CONNECTION.attrib.get('name')
+                CONN_TYPE       = CONNECTION.attrib.get('type')
+                DESCRIPTION     = CONNECTION.attrib.get('description', 'N/A')
+                REF_MATCH       = re.search(r"'([^']+)'", DESCRIPTION)
+                REFERENCE       = REF_MATCH.group(1) if REF_MATCH else "Unknown"
 
-    def EXTRACT_META(self):
-        CONNECTIONS_XML = 'xl/connections.xml'
-        META_DATA = []
+                QUERY_DATA.append({ 'ID'            : CONN_ID,
+                                    'NAME'          : CONN_NAME,
+                                    'TYPE'          : CONN_TYPE,
+                                    'DESCRIPTION'   : DESCRIPTION,
+                                    'REFERENCE'     : REFERENCE})
         
-        if CONNECTIONS_XML in self.XML_FILES:
-            ROOT            = ET.fromstring(self.XML_FILES[CONNECTIONS_XML])
-            NS              = {'n': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-            
-            for CONNECTION in ROOT.findall('.//n:connection', NS):
-                NAME        = CONNECTION.get('name')
-                CONN_STRING = CONNECTION.find('n:connectionString', NS).text if CONNECTION.find('n:connectionString', NS) else ''
-                META_DATA.append({'QUERY_NAME': NAME, 'CONNECTION_STRING': CONN_STRING})
-        
-        return pd.DataFrame(META_DATA)
+        return pd.DataFrame(QUERY_DATA) if QUERY_DATA else pd.DataFrame(columns=['ID', 'NAME', 'TYPE', 'DESCRIPTION', 'REFERENCE'])
+
+
+    def FIND_POWER_QUERY_FILES(self):
+        SECTION1_M_CONTENT = None
+        with zipfile.ZipFile(self.FILE_PATH, 'r') as ZIP_REF:
+            for FILE_INFO in ZIP_REF.infolist():
+                if FILE_INFO.filename.startswith('customXml/') and FILE_INFO.filename.endswith('.xml'):
+                    with ZIP_REF.open(FILE_INFO) as XML_FILE:
+                        XML_CONTENT_BYTES = XML_FILE.read()
+                        try:
+                            ROOT                    = etree.fromstring(XML_CONTENT_BYTES)
+                            NAMESPACE               = {'d': 'http://schemas.microsoft.com/DataMashup'}
+                            DATA_MASHUP_ELEMENTS    = ROOT.xpath('//d:DataMashup', namespaces=NAMESPACE)
+
+                            if DATA_MASHUP_ELEMENTS:
+                                BASE64_CONTENT      = DATA_MASHUP_ELEMENTS[0].text
+                                DECODED_CONTENT     = base64.b64decode(BASE64_CONTENT)
+                                ZIP_START           = DECODED_CONTENT.find(b'PK\x03\x04')
+                                ZIP_END             = DECODED_CONTENT.find(b'PK\x05\x06')
+                                if ZIP_START != -1 and ZIP_END != -1:
+                                    ZIP_DATA = BytesIO(DECODED_CONTENT[ZIP_START:ZIP_END + 22])
+                                    with zipfile.ZipFile(ZIP_DATA) as ARCHIVE:
+                                        if 'Formulas/Section1.m' in ARCHIVE.namelist(): SECTION1_M_CONTENT = ARCHIVE.read('Formulas/Section1.m').decode('utf-8')
+                            else: print("DATAMASHUP content not found.")
+                        except etree.XMLSyntaxError as E: print(f"XML parsing error: {E}")
+
+        return SECTION1_M_CONTENT
+
+
+    def PARSE_SECTION1_M_CONTENT(self, SECTION1_M_CONTENT):
+        PARSED_M_CODE           = {}
+        SECTIONS                = SECTION1_M_CONTENT.split('shared ')[1:]
+
+        for SECTION in SECTIONS:
+            SECTION_NAME        = SECTION.split('=')[0].strip()
+            M_CODE_CONTENT      = SECTION.split('=', 1)[1].strip() 
+            for COLUMN in self.COLUMN_REFERENCES:
+                if SECTION_NAME == COLUMN:
+                    PARSED_M_CODE[COLUMN] = M_CODE_CONTENT 
+                    break  
+
+        return PARSED_M_CODE
+
+    def EXTRACT_M_CODE_FROM_DATA_MASHUP(self):
+
+        SECTION1_M_CONTENT      = self.FIND_POWER_QUERY_FILES()
+        if SECTION1_M_CONTENT:  return self.PARSE_SECTION1_M_CONTENT(SECTION1_M_CONTENT)
+        else:                   return {}
+
+    def TRANSLATE_TYPE(self, TYPE_CODE):
+        TYPE_MAPPING = {'1': 'Worksheet/Table',
+                        '5': 'Power Query/Model',
+                        '6': 'OLEDB/Database',
+                        '7': 'Web/External Source'}
+        return TYPE_MAPPING.get(TYPE_CODE, 'Unknown')
+
+    def MAP_M_CODE_AND_TYPE_TO_QUERY_OVERVIEW(self):
+        self.QUERY_OVERVIEW['QUERY_TYPE']   = self.QUERY_OVERVIEW['TYPE'].apply(self.TRANSLATE_TYPE)
+        self.QUERY_OVERVIEW['M_CODE']       = self.QUERY_OVERVIEW['REFERENCE'].map(self.M_CODE_SECTIONS)
+        del self.QUERY_OVERVIEW['ID']
+        del self.QUERY_OVERVIEW['DESCRIPTION']
+        del self.QUERY_OVERVIEW['TYPE']
+        return self.QUERY_OVERVIEW
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -808,8 +891,7 @@ class EXCEL_DATA_PARSER:
         self.EXTERNAL_CONN      = EXTERNAL_CONNECTIONS_PARSING(self.XML_EXTRACTOR.XML_FILES)
         self.SHEET_ALT          = SHEET_NAME_MAP(FILE_PATH)
         self.VBA                = VBA_CODE(FILE_PATH)
-        self.PWQ                = POWER_QUERY(self.XML_EXTRACTOR.XML_FILES)
-        self.META               = QUERY_META_DATA(self.XML_EXTRACTOR.XML_FILES)
+        self.PWQ                = POWER_QUERY(self.XML_EXTRACTOR.XML_FILES, FILE_PATH)
         
 
 
@@ -831,7 +913,7 @@ class EXCEL_DATA_PARSER:
                 'EXTERNAL_CONN'     : self.EXTERNAL_CONN.DICT,
                 'XML'               : self.XML_EXTRACTOR.XML_FILES,
                 'VBA'               : self.VBA.CODE,
-                'PWQ'               : self.PWQ.CODE}
+                'PWQ'               : self.PWQ.DICT}
 
 
 

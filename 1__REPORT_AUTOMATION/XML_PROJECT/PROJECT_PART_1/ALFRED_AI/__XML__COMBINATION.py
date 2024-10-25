@@ -9,7 +9,7 @@ import networkx as nx
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from openpyxl import load_workbook
-#from oletools.olevba import VBA_Parser
+from oletools.olevba import VBA_Parser
 
 
 
@@ -220,6 +220,66 @@ def PROCESS_TABLES(PARSED_DATA, LABELS, DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT
 
 
 
+def OTHER_INFO(FINAL_DICT, PARSED_DATA):
+
+    def EXTRACT_DRAWING(DRAWDING):
+
+        DRAWING_PRESENT = False
+        for DRAWING_FILE, SHAPES in DRAWDING.items():
+            if len(SHAPES) > 0 and DRAWING_PRESENT == False: DRAWING_PRESENT = True
+                
+        DRAWING_DATA = {'DRAWING_PRESENT' : DRAWING_PRESENT, "SHAPE_FEATURES" : []}
+        for DRAWING_FILE, SHAPES in DRAWDING.items():
+            for SHAPE in SHAPES:
+                SHAPE_DATA = {  'TYPE'  : SHAPE.get('TYPE', 'N/A'),
+                                'NAME'  : SHAPE.get('NAME', 'N/A'),
+                                'MACRO' : SHAPE.get('MACRO', 'N/A'),
+                                'TEXT'  : SHAPE.get('TEXT', 'N/A')}
+                
+                DRAWING_DATA['SHAPE_FEATURES'].append(SHAPE_DATA)
+        return DRAWING_DATA
+
+
+
+    SHAPE_DATA  = EXTRACT_DRAWING(PARSED_DATA['DRAWING'])
+    VBA_DATA    = {"CODE_PRESENT"  : (False if len(PARSED_DATA['VBA']) == 0 else True), "CODE"          : []}
+    PWQ_DATA    = {"CODE_PRESENT"  : (False if len(PARSED_DATA['PWQ']) == 0 else True), "CODE"          : []}
+
+
+    if VBA_DATA['CODE_PRESENT'] == True:
+        for a in range(len(PARSED_DATA['VBA'])):
+            VBA_DRILL = {"ORDER"            : "NA",
+                         "LOCATION_TYPE"    : "SHEET" if "SHEET" in PARSED_DATA['VBA'].at[a, 'VBA_FILENAME'].upper() else "MODULE",
+                         "LOCATION"         : PARSED_DATA['VBA'].at[a, 'VBA_FILENAME'],
+                         "SCRIPT"           : PARSED_DATA['VBA'].at[a, 'VBA_CODE']}
+        
+            VBA_DATA['CODE'].append(VBA_DRILL)
+
+
+    if PWQ_DATA['CODE_PRESENT'] == True:
+        for a in range(len(PARSED_DATA['PWQ'])):
+            PWQ_DRILL = {"ORDER"            : "NA",
+                         "CONNECTION_NAME"  : PARSED_DATA['PWQ'].at[a, 'NAME'],
+                         "REFERENCE_TABLE"  : PARSED_DATA['PWQ'].at[a, 'REFERENCE'],
+                         "CONNECTION_TYPE"  : PARSED_DATA['PWQ'].at[a, 'TYPE'],
+                         "SCRIPT"           : PARSED_DATA['PWQ'].at[a, 'M_CODE']}
+        
+            PWQ_DATA['CODE'].append(PWQ_DRILL)
+
+
+
+
+    MODEL_DATA = ''
+
+
+    FINAL_DICT['SHAPES']            = SHAPE_DATA
+    FINAL_DICT['VBA']               = VBA_DATA
+    FINAL_DICT['POWER_QUERY']       = PWQ_DATA
+    FINAL_DICT['DATA_MODEL']        = MODEL_DATA
+    FINAL_DICT['STYLE_USED']        = PARSED_DATA['STYLES']
+    FINAL_DICT['THEME_USED']        = {'THEME_APPLIED' : PARSED_DATA['THEME']['color_scheme']}
+
+    return FINAL_DICT
 
 
 
@@ -265,10 +325,20 @@ def XML_COMBINATION_DICT(PARSED_DATA, LABELS, OUTPUT_DETECTED_TABLES, CLUSTERED_
                     "VBA"               :{},                ### DONE
                     "POWER_QUERY"       :{},                ### DONE
                     "DATA_MODEL"        :{},                
-                    "EXTERNAL_CON"      :{},
                     "STYLE_USED"        :{},                ### DONE
                     "THEME_USED"        :{},                ### DONE
                 }
 
 
+    FINAL_DICT = OTHER_INFO(FINAL_DICT, PARSED_DATA)
+
+
     return FINAL_DICT
+
+
+
+
+######## STILL TO DO 
+######## ---- DATA MODEL
+######## ---- DEPENDENCY_GRAPH
+######## ---- CALCULATION_ORDER
