@@ -9,7 +9,7 @@ import networkx as nx
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from openpyxl import load_workbook
-from oletools.olevba import VBA_Parser
+#from oletools.olevba import VBA_Parser
 
 
 
