@@ -220,7 +220,17 @@ def PROCESS_TABLES(PARSED_DATA, LABELS, DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT
 
 
 
-def OTHER_INFO(FINAL_DICT, PARSED_DATA):
+def OTHER_INFO(PARSED_DATA):
+
+
+    DICT_EX = {'SHAPES'     :'',
+               'VBA'        :'',
+               'POWER_QUERY':'',
+               'DATA_MODEL' :'',
+               'STYLE_USED' :'',
+               'THEME_USED' :''}
+
+
 
     def EXTRACT_DRAWING(DRAWDING):
 
@@ -241,7 +251,7 @@ def OTHER_INFO(FINAL_DICT, PARSED_DATA):
 
 
 
-    SHAPE_DATA  = EXTRACT_DRAWING(PARSED_DATA['DRAWING'])
+    SHAPE_DATA  = EXTRACT_DRAWING(PARSED_DATA['DRAWINGS'])
     VBA_DATA    = {"CODE_PRESENT"  : (False if len(PARSED_DATA['VBA']) == 0 else True), "CODE"          : []}
     PWQ_DATA    = {"CODE_PRESENT"  : (False if len(PARSED_DATA['PWQ']) == 0 else True), "CODE"          : []}
 
@@ -272,14 +282,14 @@ def OTHER_INFO(FINAL_DICT, PARSED_DATA):
     MODEL_DATA = ''
 
 
-    FINAL_DICT['SHAPES']            = SHAPE_DATA
-    FINAL_DICT['VBA']               = VBA_DATA
-    FINAL_DICT['POWER_QUERY']       = PWQ_DATA
-    FINAL_DICT['DATA_MODEL']        = MODEL_DATA
-    FINAL_DICT['STYLE_USED']        = PARSED_DATA['STYLES']
-    FINAL_DICT['THEME_USED']        = {'THEME_APPLIED' : PARSED_DATA['THEME']['color_scheme']}
+    DICT_EX['SHAPES']            = SHAPE_DATA
+    DICT_EX['VBA']               = VBA_DATA
+    DICT_EX['POWER_QUERY']       = PWQ_DATA
+    DICT_EX['DATA_MODEL']        = MODEL_DATA
+    DICT_EX['STYLE_USED']        = PARSED_DATA['STYLES']
+    DICT_EX['THEME_USED']        = {'THEME_APPLIED' : PARSED_DATA['THEME']['color_scheme']}
 
-    return FINAL_DICT
+    return DICT_EX
 
 
 
@@ -304,8 +314,8 @@ def XML_COMBINATION_DICT(PARSED_DATA, LABELS, OUTPUT_DETECTED_TABLES, CLUSTERED_
     PASTED_INPUT_TYPE_VARIABLE  = "STILL TO BE DEVELOPED"
     INPUT_SHEETS                = [KEY for KEY, VALUE in LABELS.items() if VALUE == 'INPUT_DATA']
 
-    DESIRED_OUTPUT = PROCESS_TABLES(PARSED_DATA, LABELS, OUTPUT_DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT, NESTED_OUTPUT, UPDATED_WORKSHEETS)
-
+    DESIRED_OUTPUT  = PROCESS_TABLES(PARSED_DATA, LABELS, OUTPUT_DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT, NESTED_OUTPUT, UPDATED_WORKSHEETS)
+    DICT_EX         = OTHER_INFO(PARSED_DATA)
 
 
 
@@ -321,16 +331,13 @@ def XML_COMBINATION_DICT(PARSED_DATA, LABELS, OUTPUT_DETECTED_TABLES, CLUSTERED_
                                             "EXT_CON_LOCATIONS"     :EX_CON_INPUT_TYPE_VARIABLE,
                                             "PASTED_DATA_SOURCE"    :PASTED_INPUT_TYPE_VARIABLE,
                                             "INPUT_DATA_SHEETS"     :INPUT_SHEETS},
-                    "SHAPES"            :{},
-                    "VBA"               :{},                ### DONE
-                    "POWER_QUERY"       :{},                ### DONE
-                    "DATA_MODEL"        :{},                
-                    "STYLE_USED"        :{},                ### DONE
-                    "THEME_USED"        :{},                ### DONE
+                    "SHAPES"            :DICT_EX['SHAPES'],            
+                    "VBA"               :DICT_EX['VBA'],            
+                    "POWER_QUERY"       :DICT_EX['POWER_QUERY'],       
+                    "DATA_MODEL"        :DICT_EX['DATA_MODEL'],                
+                    "STYLE_USED"        :DICT_EX['STYLE_USED'],            
+                    "THEME_USED"        :DICT_EX['THEME_USED'],      
                 }
-
-
-    FINAL_DICT = OTHER_INFO(FINAL_DICT, PARSED_DATA)
 
 
     return FINAL_DICT
