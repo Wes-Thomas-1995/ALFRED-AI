@@ -38,6 +38,59 @@ class EXCEL_XML_EXTRACTOR:
 
 
 
+class NAMED_RANGE_EXTRACTOR:
+    def __init__(self, XML_FILES):
+        self.XML_FILES = XML_FILES
+        self.DICT = self.EXTRACT_AND_PARSE_NAMED_RANGES()
+
+    def EXTRACT_AND_PARSE_NAMED_RANGES(self):
+        NAMED_RANGES_LIST = []
+        DEFINED_NAMES_XML = self.XML_FILES.get('xl/workbook.xml')
+
+        if DEFINED_NAMES_XML:
+            ROOT = ET.fromstring(DEFINED_NAMES_XML)
+            NS = {'NS': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+
+            # Locate all named ranges
+            for DEFINED_NAME in ROOT.findall('.//NS:definedNames/NS:definedName', namespaces=NS):
+                NAME = DEFINED_NAME.get('name').replace('$', '')  # Remove $ from NAME
+                ATTR_TEXT = DEFINED_NAME.text
+
+                if ATTR_TEXT:
+                    # Regular expression to match and extract cell references, with $ symbols removed
+                    MATCH = re.match(r"(.+?)!(\$?[A-Z]+\$?[0-9]+):(\$?[A-Z]+\$?[0-9]+)|(.+?)!(\$?[A-Z]+\$?[0-9]+)", ATTR_TEXT)
+                    if MATCH:
+                        SHEET_NAME = (MATCH.group(1) or MATCH.group(4)).replace('$', '')
+                        START_CELL = (MATCH.group(2) if MATCH.group(2) else MATCH.group(5)).replace('$', '')
+                        REF_CELLS = (MATCH.group(2) + ":" + MATCH.group(3)).replace('$', '') if MATCH.group(2) else START_CELL
+
+                        # Calculate columns and rows based on the range
+                        if ":" in REF_CELLS:
+                            START_COL, START_ROW = re.match(r'([A-Z]+)([0-9]+)', START_CELL).groups()
+                            END_COL, END_ROW = re.match(r'([A-Z]+)([0-9]+)', MATCH.group(3)).groups()
+
+                            COLUMNS = ord(END_COL) - ord(START_COL) + 1
+                            ROWS = int(END_ROW) - int(START_ROW) + 1
+                        else:
+                            COLUMNS, ROWS = 1, 1
+
+                        # Add the named range data as a dictionary to the list, with all $ symbols removed
+                        NAMED_RANGES_LIST.append({
+                            'NAME': NAME,
+                            'SHEET_NAME': SHEET_NAME,
+                            'START_CELL': START_CELL,
+                            'REF': REF_CELLS,
+                            'DIMENSIONS': {
+                                'ROWS': ROWS,
+                                'COLUMNS': COLUMNS
+                            }
+                        })
+
+        return NAMED_RANGES_LIST
+
+
+
+
 
 
 
@@ -891,6 +944,7 @@ class EXCEL_DATA_PARSER:
         self.SHEET_ALT          = SHEET_NAME_MAP(FILE_PATH)
         self.VBA                = VBA_CODE(FILE_PATH)
         self.PWQ                = POWER_QUERY(self.XML_EXTRACTOR.XML_FILES, FILE_PATH)
+        self.NAMED_RANGE        = NAMED_RANGE_EXTRACTOR(self.XML_EXTRACTOR.XML_FILES)
         
 
 
@@ -912,7 +966,8 @@ class EXCEL_DATA_PARSER:
                 'EXTERNAL_CONN'     : self.EXTERNAL_CONN.DICT,
                 'XML'               : self.XML_EXTRACTOR.XML_FILES,
                 'VBA'               : self.VBA.CODE,
-                'PWQ'               : self.PWQ.DICT}
+                'PWQ'               : self.PWQ.DICT,
+                'NAMED_RANGE'       : self.NAMED_RANGE.DICT}
 
 
 
@@ -1495,5 +1550,5 @@ def FULL_RUN(FILE_PATH, FUNC_PATH, LABELS):
     PARSED_DATA             = TABLES_TO_SHEET(PARSED_DATA, UPDATED_WORKSHEETS)
     OUTPUT_DETECTED_TABLES  = IDENTIFY_TABLES_WITH_HEADERS_AND_GAPS(UPDATED_WORKSHEETS)
 
-    return PARSED_DATA, EXTRACTOR.DICT, NESTED_OUTPUT, CLUSTERED_NESTED_OUTPUT, UPDATED_WORKSHEETS, OUTPUT_DETECTED_TABLES
+    return PARSED_DATA, EXTRACTOR.DICT, NESTED_OUTPUT, CLUSTERED_NESTED_OUTPUT, UPDATED_WORKSHEETS, OUTPUT_DETECTED_TABLES, P3_RESULTS
  

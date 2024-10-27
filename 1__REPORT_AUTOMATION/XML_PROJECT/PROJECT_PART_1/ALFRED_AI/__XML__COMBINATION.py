@@ -135,6 +135,8 @@ def PROCESS_TABLES(PARSED_DATA, LABELS, DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT
             "TABLE_PARAMS": {},
             "PIVOT_PRESENT": False,
             "PIVOT_PARAMS": {},
+            "NAMED_RANGE_PRESENT":False,
+            "NAMED_RANGE_PARAMS":[],
             "CLUSTERS": []
         }
 
@@ -168,6 +170,14 @@ def PROCESS_TABLES(PARSED_DATA, LABELS, DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT
                             "LOCATION": PIVOT_DATA['SOURCE_INFO'].get("REF", None)
                         }
                     }
+
+
+        if PARSED_DATA['NAMED_RANGE']:
+            for N_R_DATA in PARSED_DATA['NAMED_RANGE']:
+                if SHEET_NAME == N_R_DATA['SHEET_NAME']:
+                    SHEET_INFO["NAMED_RANGE_PRESENT"] = True
+                    SHEET_INFO["NAMED_RANGE_PARAMS"].append(N_R_DATA)
+
 
         if SHEET_NAME in DETECTED_TABLES:
             for A in range(len(DETECTED_TABLES[SHEET_NAME])):
@@ -340,7 +350,7 @@ def XML_COMBINATION_DICT(PARSED_DATA, LABELS, OUTPUT_DETECTED_TABLES, CLUSTERED_
                 }
 
 
-    return FINAL_DICT
+    return FINAL_DICT, DESIRED_OUTPUT
 
 
 
