@@ -38,55 +38,50 @@ class EXCEL_XML_EXTRACTOR:
 
 
 
+
 class NAMED_RANGE_EXTRACTOR:
-    def __init__(self, XML_FILES):
-        self.XML_FILES = XML_FILES
+    def __init__(self, FILE_PATH):
+        self.FILE_PATH = FILE_PATH
         self.DICT = self.EXTRACT_AND_PARSE_NAMED_RANGES()
 
+
     def EXTRACT_AND_PARSE_NAMED_RANGES(self):
-        NAMED_RANGES_LIST = []
-        DEFINED_NAMES_XML = self.XML_FILES.get('xl/workbook.xml')
+        NAMED_RANGES_LIST   = []
+        WB                  = load_workbook(filename=self.FILE_PATH)
+        LIST_RNG            = WB.defined_names
 
-        if DEFINED_NAMES_XML:
-            ROOT = ET.fromstring(DEFINED_NAMES_XML)
-            NS = {'NS': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+        for NAME, DEFINED_NAME_OBJ in LIST_RNG.items():
+            ATTR_TEXT   = ((DEFINED_NAME_OBJ.attr_text).replace("$", "")).replace("'", "")
+            PATTERN     = r"(^[A-Za-z0-9_]+|\'[A-Za-z0-9_ ]+\')!([A-Z]{1,2}[0-9]+)(:([A-Z]{1,2}[0-9]+))?$"
+            if bool(re.match(PATTERN, ATTR_TEXT)):
+                MATCH = re.match(PATTERN, ATTR_TEXT)
+                if MATCH:
+                    SHEET_NAME  = MATCH.group(1)
+                    START_CELL  = MATCH.group(2)
+                    END_CELL    = MATCH.group(4) if MATCH.group(4) else START_CELL
 
-            # Locate all named ranges
-            for DEFINED_NAME in ROOT.findall('.//NS:definedNames/NS:definedName', namespaces=NS):
-                NAME = DEFINED_NAME.get('name').replace('$', '')  # Remove $ from NAME
-                ATTR_TEXT = DEFINED_NAME.text
+                    if START_CELL != END_CELL:
+                        START_COL, START_ROW    = re.match(r'([A-Z]+)([0-9]+)', START_CELL).groups()
+                        END_COL, END_ROW        = re.match(r'([A-Z]+)([0-9]+)', END_CELL).groups()
+                        COLUMNS                 = ord(END_COL) - ord(START_COL) + 1
+                        ROWS                    = int(END_ROW) - int(START_ROW) + 1
+                    else:COLUMNS, ROWS          = 1, 1
 
-                if ATTR_TEXT:
-                    # Regular expression to match and extract cell references, with $ symbols removed
-                    MATCH = re.match(r"(.+?)!(\$?[A-Z]+\$?[0-9]+):(\$?[A-Z]+\$?[0-9]+)|(.+?)!(\$?[A-Z]+\$?[0-9]+)", ATTR_TEXT)
-                    if MATCH:
-                        SHEET_NAME = (MATCH.group(1) or MATCH.group(4)).replace('$', '')
-                        START_CELL = (MATCH.group(2) if MATCH.group(2) else MATCH.group(5)).replace('$', '')
-                        REF_CELLS = (MATCH.group(2) + ":" + MATCH.group(3)).replace('$', '') if MATCH.group(2) else START_CELL
-
-                        # Calculate columns and rows based on the range
-                        if ":" in REF_CELLS:
-                            START_COL, START_ROW = re.match(r'([A-Z]+)([0-9]+)', START_CELL).groups()
-                            END_COL, END_ROW = re.match(r'([A-Z]+)([0-9]+)', MATCH.group(3)).groups()
-
-                            COLUMNS = ord(END_COL) - ord(START_COL) + 1
-                            ROWS = int(END_ROW) - int(START_ROW) + 1
-                        else:
-                            COLUMNS, ROWS = 1, 1
-
-                        # Add the named range data as a dictionary to the list, with all $ symbols removed
-                        NAMED_RANGES_LIST.append({
-                            'NAME': NAME,
-                            'SHEET_NAME': SHEET_NAME,
-                            'START_CELL': START_CELL,
-                            'REF': REF_CELLS,
-                            'DIMENSIONS': {
-                                'ROWS': ROWS,
-                                'COLUMNS': COLUMNS
-                            }
-                        })
+                    NAMED_RANGES_LIST.append({
+                        'NAME': NAME,
+                        'SHEET_NAME': SHEET_NAME,
+                        'START_CELL': START_CELL,
+                        'REF': ATTR_TEXT,
+                        'DIMENSIONS': {
+                            'ROWS': ROWS,
+                            'COLUMNS': COLUMNS
+                        }
+                    })
 
         return NAMED_RANGES_LIST
+
+
+
 
 
 
@@ -271,7 +266,7 @@ class WORKSHEET_PARSING:
                     CELL_DATA = {
                         'TYPE': CELL_TYPE,
                         'STYLE_INDEX': STYLE_INDEX,
-                        'FORMULA': FORMULA.text if FORMULA is not None else None,
+                        'FORMULA': ((FORMULA.text).replace('_xlfn.', '')).replace('""', 'BLANK') if FORMULA is not None else None,
                         'VALUE': VALUE_TEXT
                     }
 
@@ -944,7 +939,7 @@ class EXCEL_DATA_PARSER:
         self.SHEET_ALT          = SHEET_NAME_MAP(FILE_PATH)
         self.VBA                = VBA_CODE(FILE_PATH)
         self.PWQ                = POWER_QUERY(self.XML_EXTRACTOR.XML_FILES, FILE_PATH)
-        self.NAMED_RANGE        = NAMED_RANGE_EXTRACTOR(self.XML_EXTRACTOR.XML_FILES)
+        self.NAMED_RANGE        = NAMED_RANGE_EXTRACTOR(FILE_PATH)
         
 
 
@@ -1105,7 +1100,7 @@ class FORMULA_ANALYZER:
     def FORMULA_CONVERSION(self, FORMULA, OPERATORS_DF, FUNCTIONS_DF):
 
         FORMULA_LIST        = self.EXTRACTION(FORMULA)
-        FORMULA_CLEAN       = self.APPLY_OPERATORS(FORMULA, OPERATORS_DF)        
+        FORMULA_CLEAN       = self.APPLY_OPERATORS(FORMULA, OPERATORS_DF)     
         RESULT              = self.PROCESS_FORMULA(FORMULA_CLEAN[1:], FUNCTIONS_DF, FORMULA_LIST)
 
         return RESULT
@@ -1210,22 +1205,38 @@ class FORMULA_ANALYZER:
             return {"FUNCTION": FUNCTION_NAME, "COMPONENTS": ARGUMENTS}
 
 
-
     def SPLIT_ARGUMENTS(self, ARGUMENT_STR):
-        ARGS, CURRENT_ARG, PARENTHESIS_COUNT    = [], "", 0
+        ARGS, CURRENT_ARG = [], ""
+        PARENTHESIS_COUNT, BRACKET_COUNT = 0, 0
+        bracket_comma_allowed = True  # Tracks if a comma is allowed within square brackets
 
         for CHAR in ARGUMENT_STR:
-            if CHAR == ',' and PARENTHESIS_COUNT == 0:
+            if CHAR == ',' and PARENTHESIS_COUNT == 0 and BRACKET_COUNT == 0:
+                # Split on commas only if we're not inside parentheses or brackets
                 ARGS.append(CURRENT_ARG.strip())
                 CURRENT_ARG = ""
-
             else:
+                # Add the character to the current argument
                 CURRENT_ARG += CHAR
-                if CHAR == '(':         PARENTHESIS_COUNT += 1
-                elif CHAR == ')':       PARENTHESIS_COUNT -= 1
+                if CHAR == '(':
+                    PARENTHESIS_COUNT += 1
+                elif CHAR == ')':
+                    PARENTHESIS_COUNT -= 1
+                elif CHAR == '[':
+                    BRACKET_COUNT += 1
+                    bracket_comma_allowed = True  # Reset comma allowance for new brackets
+                elif CHAR == ']':
+                    BRACKET_COUNT -= 1
+                elif CHAR == ',' and BRACKET_COUNT > 0:
+                    # Inside brackets, we check if a comma is allowed
+                    if not bracket_comma_allowed:
+                        raise ValueError("Only one comma allowed within table reference brackets.")
+                    bracket_comma_allowed = False  # Disallow further commas until bracket closes
 
-        if CURRENT_ARG:                 ARGS.append(CURRENT_ARG.strip())
-        
+        # Add the last argument, if any
+        if CURRENT_ARG:
+            ARGS.append(CURRENT_ARG.strip())
+
         return ARGS
 
 
@@ -1477,7 +1488,10 @@ def IDENTIFY_TABLES_WITH_HEADERS_AND_GAPS(WORKSHEETS, MAX_COLUMN_GAP=2):
             if CELL_VALUE or FORMULA:
                 COL, ROW = re.split(r'(\d+)', CELL_REF)[:2]
                 ROW = int(ROW)
-                COL_INDEX = ord(COL.upper()) - ord('A')
+                COL_INDEX = 0
+                for CHAR in COL.upper():
+                    COL_INDEX = COL_INDEX * 26 + (ord(CHAR) - ord('A') + 1)
+
 
                 if PREVIOUS_COL_INDEX is not None and (COL_INDEX - PREVIOUS_COL_INDEX) > MAX_COLUMN_GAP:
                     if CURRENT_TABLE and CURRENT_TABLE['CELLS']:
@@ -1514,7 +1528,9 @@ def IDENTIFY_TABLES_WITH_HEADERS_AND_GAPS(WORKSHEETS, MAX_COLUMN_GAP=2):
             for CELL in TABLE['CELLS']:
                 COL, ROW = re.split(r'(\d+)', CELL)[:2]
                 ROW = int(ROW)
-                COL_INDEX = ord(COL.upper()) - ord('A')
+                COL_INDEX = 0
+                for CHAR in COL.upper():
+                    COL_INDEX = COL_INDEX * 26 + (ord(CHAR) - ord('A') + 1)
                 ROWS.add(ROW)
                 COLS.add(COL_INDEX)
             TABLE['ROWS'] = len(ROWS)

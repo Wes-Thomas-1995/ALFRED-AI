@@ -83,10 +83,16 @@ def PROCESS_TABLES(PARSED_DATA, LABELS, DETECTED_TABLES, CLUSTERED_NESTED_OUTPUT
         return OUTPUT_DICT
 
     def GET_COLUMN_LETTER(START_CELL, COLUMN_INDEX):
-        START_COL_LETTER = START_CELL[0]
+        START_COL_LETTER = ''.join([char for char in START_CELL if char.isalpha()])  # Extract letters from START_CELL
         START_COL_NUM = COL_TO_NUM(START_COL_LETTER)
         RETURN_COL_NUM = START_COL_NUM + COLUMN_INDEX
-        RETURN_COL_LETTER = string.ascii_uppercase[RETURN_COL_NUM - 1]
+        
+        # Convert number back to letter(s) for columns greater than "Z"
+        RETURN_COL_LETTER = ''
+        while RETURN_COL_NUM > 0:
+            RETURN_COL_NUM, remainder = divmod(RETURN_COL_NUM - 1, 26)
+            RETURN_COL_LETTER = chr(65 + remainder) + RETURN_COL_LETTER  # 65 is ASCII for 'A'
+        
         return RETURN_COL_LETTER
 
     def CHECK_AND_POPULATE_HEADERS(APPEND_DICT):
